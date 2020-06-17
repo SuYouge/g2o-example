@@ -49,8 +49,8 @@ int main(int argc, char **argv)
   if (argc > 1)
     num_points = atoi(argv[1]);
 
-  double euc_noise = 0.1;      // noise in position, m
-  double pix_noise = 1.0;       // pixel noise
+  double euc_noise = 0.1;      // noise in position, 单位为m
+  double pix_noise = 1.0;       // pixel noise， 单位为像素
   //  double outlier_ratio = 0.1;
 
 
@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 
   optimizer.setAlgorithm(solver);
 
+  // 生成一系列的真实三维空间点
   vector<Vector3d> true_points;
   for (size_t i=0;i<1000; ++i)
   {
@@ -72,18 +73,19 @@ int main(int argc, char **argv)
   }
 
 
-  // set up camera params
-  Vector2d focal_length(500,500); // pixels
+  // set up camera params， 设置相机参数
+  Vector2d focal_length(500,500); // 单位为pixels
   Vector2d principal_point(320,240); // 640x480 image
   double baseline = 0.075;      // 7.5 cm baseline
 
   // set up camera params and projection matrices on vertices
+  // 用到了相机顶点 ： VertexSCam， 设置相机的参数
   g2o::VertexSCam::setKcam(focal_length[0],focal_length[1],
                            principal_point[0],principal_point[1],
                            baseline);
 
 
-  // set up two poses
+  // set up two poses， 设置两个相机位姿
   int vertex_id = 0;
   for (size_t i=0; i<2; ++i)
   {
@@ -98,12 +100,13 @@ int main(int argc, char **argv)
 
     // set up node
     VertexSCam *vc = new VertexSCam();
-    vc->setEstimate(cam);
+    vc->setEstimate(cam); // 初始估计
     vc->setId(vertex_id);      // vertex id
 
+    // 平移和旋转, 第一个相机的位置在(0,0,0)，第二个相机的位置在(0,0,1)
     cerr << t.transpose() << " | " << q.coeffs().transpose() << endl;
 
-    // set first cam pose fixed
+    // set first cam pose fixed， 固定第一个相机
     if (i==0)
       vc->setFixed(true);
 
@@ -117,6 +120,8 @@ int main(int argc, char **argv)
   }
 
   // set up point matches for GICP
+  // 这一部分可以注释掉
+  // 激光传感器可以直接获得单位为m的深度值
   for (size_t i=0; i<true_points.size(); ++i)
   {
     // get two poses
@@ -126,6 +131,7 @@ int main(int argc, char **argv)
       dynamic_cast<VertexSE3*>(optimizer.vertices().find(1)->second);
 
     // calculate the relative 3D position of the point
+    // 将真实点的坐标转换到相机坐标系下
     Vector3d pt0,pt1;
     pt0 = vp0->estimate().inverse() * true_points[i];
     pt1 = vp1->estimate().inverse() * true_points[i];
@@ -140,27 +146,35 @@ int main(int argc, char **argv)
                     g2o::Sampler::gaussRand(0., euc_noise));
 
     // form edge, with normals in varioius positions
+    // 构造边
     Vector3d nm0, nm1;
     nm0 << 0, i, 1;
     nm1 << 0, i, 1;
     nm0.normalize();
     nm1.normalize();
 
+    // 构造边
     Edge_V_V_GICP * e           // new edge with correct cohort for caching
         = new Edge_V_V_GICP();
 
+    // 为边添加顶点
     e->vertices()[0]            // first viewpoint
       = dynamic_cast<OptimizableGraph::Vertex*>(vp0);
 
     e->vertices()[1]            // second viewpoint
       = dynamic_cast<OptimizableGraph::Vertex*>(vp1);
 
+    // 两点之间的边， 和顶点刚性连接
+    // class for edges between two points rigidly attached to vertices
     EdgeGICP meas;
 
+    // 位置和单位方向
     meas.pos0 = pt0;
     meas.pos1 = pt1;
     meas.normal0 = nm0;
     meas.normal1 = nm1;
+    
+    // 设置测量值
     e->setMeasurement(meas);
     meas = e->measurement();
     //        e->inverseMeasurement().pos() = -kp;
@@ -178,7 +192,7 @@ int main(int argc, char **argv)
   }
 
   // set up SBA projections with some number of points
-
+  // 清空true_points，按照原有的分布重新生成SBA投影点
   true_points.clear();
   for (int i=0;i<num_points; ++i)
   {
@@ -187,8 +201,10 @@ int main(int argc, char **argv)
                                    g2o::Sampler::uniformRand(0., 1.)+10));
   }
 
-
   // add point projections to this vertex
+  // 将SBA投影点作为顶点加入图
+  // 这一部分可以注释掉， 如果不采用这一部分投影， VertexSCam和VertexSE3基本一致
+  // 双目相机只能获得单位为pixel的深度值
   for (size_t i=0; i<true_points.size(); ++i)
   {
     g2o::VertexSBAPointXYZ * v_p
@@ -204,18 +220,22 @@ int main(int argc, char **argv)
 
     optimizer.addVertex(v_p);
 
+    // 设置边
     for (size_t j=0; j<2; ++j)
       {
         Vector3d z;
+
+        // 通过相机投影， 双目估计深度得到观测值， 坐标单位为像素
         dynamic_cast<g2o::VertexSCam*>
-          (optimizer.vertices().find(j)->second)
+          (optimizer.vertices().find(j)->second) // 顶点是一个unordered_map
           ->mapPoint(z,true_points.at(i));
 
         if (z[0]>=0 && z[1]>=0 && z[0]<640 && z[1]<480)
         {
+          // 为可以观察到的空间点添加噪声
           z += Vector3d(g2o::Sampler::gaussRand(0., pix_noise),
                         g2o::Sampler::gaussRand(0., pix_noise),
-                        g2o::Sampler::gaussRand(0., pix_noise/16.0));
+                        g2o::Sampler::gaussRand(0., pix_noise));
 
           g2o::Edge_XYZ_VSC * e
               = new g2o::Edge_XYZ_VSC();
@@ -227,6 +247,7 @@ int main(int argc, char **argv)
               = dynamic_cast<g2o::OptimizableGraph::Vertex*>
               (optimizer.vertices().find(j)->second);
 
+          // 设置测量值
           e->setMeasurement(z);
           //e->inverseMeasurement() = -z;
           e->information() = Matrix3d::Identity();
@@ -241,6 +262,7 @@ int main(int argc, char **argv)
   } // done with adding projection points
 
   // move second cam off of its true position
+  // 偏移第二个相机
   VertexSE3* vc =
     dynamic_cast<VertexSE3*>(optimizer.vertices().find(1)->second);
   Eigen::Isometry3d cam = vc->estimate();

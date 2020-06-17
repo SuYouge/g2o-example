@@ -46,6 +46,25 @@ using namespace std;
 using namespace g2o;
 using namespace g2o::tutorial;
 
+namespace g2o
+{
+  namespace tutorial
+  {
+
+    G2O_REGISTER_TYPE_GROUP(tutorial_slam2d);
+
+    G2O_REGISTER_TYPE(TUTORIAL_VERTEX_SE2, VertexSE2);
+    G2O_REGISTER_TYPE(TUTORIAL_VERTEX_POINT_XY, VertexPointXY);
+
+    G2O_REGISTER_TYPE(TUTORIAL_PARAMS_SE2_OFFSET, ParameterSE2Offset);
+
+    G2O_REGISTER_TYPE(TUTORIAL_CACHE_SE2_OFFSET, CacheSE2Offset);
+
+    G2O_REGISTER_TYPE(TUTORIAL_EDGE_SE2, EdgeSE2);
+    G2O_REGISTER_TYPE(TUTORIAL_EDGE_SE2_POINT_XY, EdgeSE2PointXY);
+  } // namespace tutorial
+} // namespace g2o
+
 int main()
 {
   // TODO simulate different sensor offset
@@ -59,20 +78,20 @@ int main()
    * creating the optimization problem
    ********************************************************************************/
 
-  typedef BlockSolver< BlockSolverTraits<-1, -1> >  SlamBlockSolver;
+  typedef BlockSolver<BlockSolverTraits<-1, -1>> SlamBlockSolver;
   typedef LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
   // allocating the optimizer
   SparseOptimizer optimizer;
   auto linearSolver = g2o::make_unique<SlamLinearSolver>();
   linearSolver->setBlockOrdering(false);
-  OptimizationAlgorithmGaussNewton* solver = new OptimizationAlgorithmGaussNewton(
-    g2o::make_unique<SlamBlockSolver>(std::move(linearSolver)));
+  OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(
+      g2o::make_unique<SlamBlockSolver>(std::move(linearSolver)));
 
   optimizer.setAlgorithm(solver);
 
   // add the parameter representing the sensor offset
-  ParameterSE2Offset* sensorOffset = new ParameterSE2Offset;
+  ParameterSE2Offset *sensorOffset = new ParameterSE2Offset;
   sensorOffset->setOffset(sensorOffsetTransf);
   sensorOffset->setId(0);
   optimizer.addParameter(sensorOffset);
@@ -80,10 +99,11 @@ int main()
   // adding the odometry to the optimizer
   // first adding all the vertices
   cerr << "Optimization: Adding robot poses ... ";
-  for (size_t i = 0; i < simulator.poses().size(); ++i) {
-    const Simulator::GridPose& p = simulator.poses()[i];
-    const SE2& t = p.simulatorPose; 
-    VertexSE2* robot =  new VertexSE2;
+  for (size_t i = 0; i < simulator.poses().size(); ++i)
+  {
+    const Simulator::GridPose &p = simulator.poses()[i];
+    const SE2 &t = p.simulatorPose;
+    VertexSE2 *robot = new VertexSE2;
     robot->setId(p.id);
     robot->setEstimate(t);
     optimizer.addVertex(robot);
@@ -92,10 +112,11 @@ int main()
 
   // second add the odometry constraints
   cerr << "Optimization: Adding odometry measurements ... ";
-  for (size_t i = 0; i < simulator.odometry().size(); ++i) {
-    const Simulator::GridEdge& simEdge = simulator.odometry()[i];
+  for (size_t i = 0; i < simulator.odometry().size(); ++i)
+  {
+    const Simulator::GridEdge &simEdge = simulator.odometry()[i];
 
-    EdgeSE2* odometry = new EdgeSE2;
+    EdgeSE2 *odometry = new EdgeSE2;
     odometry->vertices()[0] = optimizer.vertex(simEdge.from);
     odometry->vertices()[1] = optimizer.vertex(simEdge.to);
     odometry->setMeasurement(simEdge.simulatorTransf);
@@ -106,9 +127,10 @@ int main()
 
   // add the landmark observations
   cerr << "Optimization: add landmark vertices ... ";
-  for (size_t i = 0; i < simulator.landmarks().size(); ++i) {
-    const Simulator::Landmark& l = simulator.landmarks()[i];
-    VertexPointXY* landmark = new VertexPointXY;
+  for (size_t i = 0; i < simulator.landmarks().size(); ++i)
+  {
+    const Simulator::Landmark &l = simulator.landmarks()[i];
+    VertexPointXY *landmark = new VertexPointXY;
     landmark->setId(l.id);
     landmark->setEstimate(l.simulatedPose);
     optimizer.addVertex(landmark);
@@ -116,9 +138,10 @@ int main()
   cerr << "done." << endl;
 
   cerr << "Optimization: add landmark observations ... ";
-  for (size_t i = 0; i < simulator.landmarkObservations().size(); ++i) {
-    const Simulator::LandmarkEdge& simEdge = simulator.landmarkObservations()[i];
-    EdgeSE2PointXY* landmarkObservation =  new EdgeSE2PointXY;
+  for (size_t i = 0; i < simulator.landmarkObservations().size(); ++i)
+  {
+    const Simulator::LandmarkEdge &simEdge = simulator.landmarkObservations()[i];
+    EdgeSE2PointXY *landmarkObservation = new EdgeSE2PointXY;
     landmarkObservation->vertices()[0] = optimizer.vertex(simEdge.from);
     landmarkObservation->vertices()[1] = optimizer.vertex(simEdge.to);
     landmarkObservation->setMeasurement(simEdge.simulatorMeas);
@@ -127,7 +150,6 @@ int main()
     optimizer.addEdge(landmarkObservation);
   }
   cerr << "done." << endl;
-
 
   /*********************************************************************************
    * optimization
@@ -138,7 +160,7 @@ int main()
 
   // prepare and run the optimization
   // fix the first robot pose to account for gauge freedom
-  VertexSE2* firstRobotPose = dynamic_cast<VertexSE2*>(optimizer.vertex(0));
+  VertexSE2 *firstRobotPose = dynamic_cast<VertexSE2 *>(optimizer.vertex(0));
   firstRobotPose->setFixed(true);
   optimizer.setVerbose(true);
 
