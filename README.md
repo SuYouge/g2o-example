@@ -26,6 +26,9 @@
 * tutorial_slam2d
   * [tutorial_slam2d](./tutorial_slam2d/tutorial_slam2d.cpp)
 
+* line_slam(slam based on line element)
+  * [simulator_3d_line](./line_slam/simulator_3d_line.cpp)
+
 ## dataset
 
 [dataset](./data/)

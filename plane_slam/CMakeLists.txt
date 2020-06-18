@@ -29,3 +29,7 @@ add_executable(simulator_3d_plane
 )
 target_link_libraries(simulator_3d_plane g2o_core g2o_solver_csparse g2o_types_slam3d g2o_types_slam3d_addons g2o_stuff g2o_csparse_extension cxsparse)
 # set_target_properties(simulator_3d_plane PROPERTIES OUTPUT_NAME simulator_3d_plane${EXE_POSTFIX})
+add_executable(plane_test
+  plane_test.cpp
+)
+target_link_libraries(plane_test g2o_core g2o_types_slam3d g2o_types_slam3d_addons)

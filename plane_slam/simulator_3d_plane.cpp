@@ -35,14 +35,18 @@
 #include "g2o/stuff/macros.h"
 #include "g2o/stuff/command_args.h"
 #include "g2o/stuff/sampler.h"
-
+#include "g2o/core/sparse_optimizer.h"
+#include "g2o/solvers/csparse/linear_solver_csparse.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
+#include "g2o/core/optimization_algorithm_gauss_newton.h"
+#include "g2o/core/optimization_algorithm_dogleg.h"
 #include <iostream>
 
 using namespace g2o;
 using namespace std;
 using namespace Eigen;
 
-G2O_USE_OPTIMIZATION_LIBRARY(csparse)
+// G2O_USE_OPTIMIZATION_LIBRARY(csparse)
 
 Eigen::Isometry3d sample_noise_from_se3(const Vector6& cov ){
   double nx=g2o::Sampler::gaussRand(0., cov(0));
@@ -485,5 +489,4 @@ int main (int argc  , char ** argv){
   }
   ofstream os1("test_postOpt.g2o");
   g->save(os1);
-
 }

@@ -18,7 +18,8 @@ using namespace Eigen;
 
 G2O_USE_OPTIMIZATION_LIBRARY(csparse)
 
-Eigen::Isometry3d sample_noise_from_se3(const Vector6& cov ) {
+Eigen::Isometry3d sample_noise_from_se3(const Vector6 &cov)
+{
   double nx = Sampler::gaussRand(0., cov(0));
   double ny = Sampler::gaussRand(0., cov(1));
   double nz = Sampler::gaussRand(0., cov(2));
@@ -27,9 +28,10 @@ Eigen::Isometry3d sample_noise_from_se3(const Vector6& cov ) {
   double npitch = Sampler::gaussRand(0., cov(4));
   double nyaw = Sampler::gaussRand(0., cov(5));
 
-  AngleAxisd aa(AngleAxisd(nyaw, Vector3d::UnitZ())*
-		AngleAxisd(nroll, Vector3d::UnitX())*
-		AngleAxisd(npitch, Vector3d::UnitY()));
+  // eigen
+  AngleAxisd aa(AngleAxisd(nyaw, Vector3d::UnitZ()) *
+                AngleAxisd(nroll, Vector3d::UnitX()) *
+                AngleAxisd(npitch, Vector3d::UnitY()));
 
   Eigen::Isometry3d retval = Isometry3d::Identity();
   retval.matrix().block<3, 3>(0, 0) = aa.toRotationMatrix();
@@ -37,62 +39,76 @@ Eigen::Isometry3d sample_noise_from_se3(const Vector6& cov ) {
   return retval;
 }
 
-Vector4d sample_noise_from_line(const Vector4d& cov) {
+Vector4d sample_noise_from_line(const Vector4d &cov)
+{
   return Vector4d(Sampler::gaussRand(0., cov(0)), Sampler::gaussRand(0., cov(1)),
                   Sampler::gaussRand(0., cov(2)), Sampler::gaussRand(0., cov(3)));
 }
 
-struct SimulatorItem {
-  SimulatorItem(OptimizableGraph* graph_): _graph(graph_) {}
-  OptimizableGraph* graph() { return _graph;}
-  virtual ~SimulatorItem(){}
+// 由optimizable graph构造
+struct SimulatorItem
+{
+  SimulatorItem(OptimizableGraph *graph_) : _graph(graph_) {}
+  OptimizableGraph *graph() { return _graph; }
+  virtual ~SimulatorItem() {}
+
 protected:
-  OptimizableGraph* _graph;
+  OptimizableGraph *_graph;
 };
 
-struct WorldItem : public SimulatorItem {
-  WorldItem(OptimizableGraph* graph_, OptimizableGraph::Vertex* vertex_ = 0) :
-    SimulatorItem(graph_),_vertex(vertex_) {}
-  OptimizableGraph::Vertex* vertex() { return _vertex; }
-  void  setVertex(OptimizableGraph::Vertex* vertex_) { _vertex = vertex_; }
+// 为SimulatorItem提供顶点
+struct WorldItem : public SimulatorItem
+{
+  WorldItem(OptimizableGraph *graph_, OptimizableGraph::Vertex *vertex_ = 0) : SimulatorItem(graph_), _vertex(vertex_) {}
+  OptimizableGraph::Vertex *vertex() { return _vertex; }
+  void setVertex(OptimizableGraph::Vertex *vertex_) { _vertex = vertex_; }
+
 protected:
-  OptimizableGraph::Vertex* _vertex;
+  OptimizableGraph::Vertex *_vertex;
 };
 
-typedef std::set<WorldItem*> WorldItemSet;
+typedef std::set<WorldItem *> WorldItemSet;
 
 struct Robot;
 
-struct Sensor {
-  Sensor(Robot* robot_) : _robot(robot_) {}
-  Robot* robot() {return _robot;}
-  virtual bool isVisible(const WorldItem* ) const {return false;}
-  virtual bool sense(WorldItem* , const Isometry3d& ) {return false;}
+// 由robot构造
+struct Sensor
+{
+  Sensor(Robot *robot_) : _robot(robot_) {}
+  Robot *robot() { return _robot; }
+  virtual bool isVisible(const WorldItem *) const { return false; }
+  virtual bool sense(WorldItem *, const Isometry3d &) { return false; }
   virtual ~Sensor(){};
+
 protected:
-  Robot* _robot;
+  Robot *_robot;
 };
 
-typedef std::vector<Sensor*> SensorVector;
+typedef std::vector<Sensor *> SensorVector;
 
-struct Robot: public WorldItem {
+// robot类
+struct Robot : public WorldItem
+{
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  Robot(OptimizableGraph* graph_) : WorldItem(graph_) {
+  Robot(OptimizableGraph *graph_) : WorldItem(graph_)
+  {
     _planarMotion = false;
     _position = Isometry3d::Identity();
   }
 
-  void move(const Isometry3d& newPosition, int& id) {
+  void move(const Isometry3d &newPosition, int &id)
+  {
     Isometry3d delta = _position.inverse() * newPosition;
     _position = newPosition;
-    VertexSE3* v = new VertexSE3();
+    VertexSE3 *v = new VertexSE3();
     v->setId(id);
     id++;
     graph()->addVertex(v);
-    if(_planarMotion) {
+    if (_planarMotion)
+    {
       // add a singleton constraint that locks the position of the robot on the plane
-      EdgeSE3Prior* planeConstraint=new EdgeSE3Prior();
+      EdgeSE3Prior *planeConstraint = new EdgeSE3Prior();
       Matrix6 pinfo = Matrix6::Zero();
       pinfo(2, 2) = 1e9;
       planeConstraint->setInformation(pinfo);
@@ -101,14 +117,18 @@ struct Robot: public WorldItem {
       planeConstraint->setParameterId(0, 0);
       graph()->addEdge(planeConstraint);
     }
-    if(vertex()) {
-      VertexSE3* oldV = dynamic_cast<VertexSE3*>(vertex());
-      EdgeSE3* e = new EdgeSE3();
+
+    // 获取顶点
+    if (vertex())
+    {
+      VertexSE3 *oldV = dynamic_cast<VertexSE3 *>(vertex());
+      EdgeSE3 *e = new EdgeSE3();
       Isometry3d noise = sample_noise_from_se3(_nmovecov);
-      e->setMeasurement(delta * noise);
+      e->setMeasurement(delta * noise); // 构造带有噪声的运动
       Matrix6 m = Matrix6::Identity();
-      for(int i = 0; i < 6; ++i) {
-	      m(i, i) = 1.0 / (_nmovecov(i));
+      for (int i = 0; i < 6; ++i)
+      {
+        m(i, i) = 1.0 / (_nmovecov(i));
       }
       e->setInformation(m);
       e->vertices()[0] = vertex();
@@ -116,49 +136,64 @@ struct Robot: public WorldItem {
       graph()->addEdge(e);
       v->setEstimate(oldV->estimate() * e->measurement());
     }
-    else {
-      v->setEstimate(_position);
+    else
+    {
+      v->setEstimate(_position); // 里程计
     }
     setVertex(v);
   }
 
-  void relativeMove(const Isometry3d& delta, int& id) {
+  // 运动
+  void relativeMove(const Isometry3d &delta, int &id)
+  {
     Isometry3d newPosition = _position * delta;
     move(newPosition, id);
   }
 
-  void sense(WorldItem* wi = 0) {
-    for(size_t i = 0; i < _sensors.size(); ++i) {
-      Sensor* s = _sensors[i];
+  // 感知
+  void sense(WorldItem *wi = 0)
+  {
+    for (size_t i = 0; i < _sensors.size(); ++i)
+    {
+      Sensor *s = _sensors[i];
       s->sense(wi, _position);
     }
   }
 
-  Isometry3d _position;
-  SensorVector _sensors;
-  Vector6 _nmovecov;
-  bool _planarMotion;
+  Isometry3d _position;  // 位姿
+  SensorVector _sensors; // 传感器
+  Vector6 _nmovecov;     // ?
+  bool _planarMotion;    // 是否为平面运动
 };
 
-typedef std::vector<Robot*> RobotVector;
+typedef std::vector<Robot *> RobotVector;
 
-struct Simulator : public SimulatorItem {
-  Simulator(OptimizableGraph* graph_) : SimulatorItem(graph_), _lastVertexId(0) {}
-  void sense(int robotIndex) {
-    Robot* r = _robots[robotIndex];
-    for(WorldItemSet::iterator it = _world.begin(); it != _world.end(); ++it) {
-      WorldItem* item = *it;
+struct Simulator : public SimulatorItem
+{
+  Simulator(OptimizableGraph *graph_) : SimulatorItem(graph_), _lastVertexId(0) {}
+
+  // 感知world中所有物体
+  void sense(int robotIndex)
+  {
+    Robot *r = _robots[robotIndex];
+    for (WorldItemSet::iterator it = _world.begin(); it != _world.end(); ++it)
+    {
+      WorldItem *item = *it;
       r->sense(item);
     }
   }
 
-  void move(int robotIndex, const Isometry3d& newRobotPose) {
-    Robot* r = _robots[robotIndex];
+  // 移动机器人
+  void move(int robotIndex, const Isometry3d &newRobotPose)
+  {
+    Robot *r = _robots[robotIndex];
     r->move(newRobotPose, _lastVertexId);
   }
 
-  void relativeMove(int robotIndex, const Isometry3d& delta) {
-    Robot* r = _robots[robotIndex];
+  // 相对运动
+  void relativeMove(int robotIndex, const Isometry3d &delta)
+  {
+    Robot *r = _robots[robotIndex];
     r->relativeMove(delta, _lastVertexId);
   }
 
@@ -167,60 +202,76 @@ struct Simulator : public SimulatorItem {
   RobotVector _robots;
 };
 
-struct LineItem : public WorldItem {
-  LineItem(OptimizableGraph* graph_, int id) : WorldItem(graph_) {
-    VertexLine3D* l = new VertexLine3D();
+struct LineItem : public WorldItem
+{
+  LineItem(OptimizableGraph *graph_, int id) : WorldItem(graph_)
+  {
+    // 添加边，类型为VertexLine3D
+    VertexLine3D *l = new VertexLine3D();
     l->setId(id);
     graph()->addVertex(l);
     setVertex(l);
   }
 };
 
-struct LineSensor : public Sensor {
+struct LineSensor : public Sensor
+{
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  LineSensor(Robot* r, int offsetId, const Isometry3d& offset_) : Sensor(r) {
+  LineSensor(Robot *r, int offsetId, const Isometry3d &offset_) : Sensor(r)
+  {
     _offsetVertex = new VertexSE3();
     _offsetVertex->setId(offsetId);
     _offsetVertex->setEstimate(offset_);
     robot()->graph()->addVertex(_offsetVertex);
   };
 
-  virtual bool isVisible(const WorldItem* wi) const {
-    if(!wi) {
+  // useless ?
+  virtual bool isVisible(const WorldItem *wi) const
+  {
+    if (!wi)
+    {
       return false;
     }
-    const LineItem* li = dynamic_cast<const LineItem*>(wi);
-    if(!li) {
+    const LineItem *li = dynamic_cast<const LineItem *>(wi);
+    if (!li)
+    {
       return false;
     }
     return true;
   }
 
-  virtual bool sense(WorldItem* wi, const Isometry3d& position) {
-    if(!wi) {
+  virtual bool sense(WorldItem *wi, const Isometry3d &position)
+  {
+    if (!wi)
+    {
       return false;
     }
-    LineItem* li = dynamic_cast<LineItem*>(wi);
-    if(!li) {
+    LineItem *li = dynamic_cast<LineItem *>(wi);
+    if (!li)
+    {
       return false;
     }
-    OptimizableGraph::Vertex* rv = robot()->vertex();
-    if(!rv) {
+    OptimizableGraph::Vertex *rv = robot()->vertex();
+    if (!rv)
+    {
       return false;
     }
-    VertexSE3* robotVertex = dynamic_cast<VertexSE3*>(rv);
-    if(!robotVertex) {
+    VertexSE3 *robotVertex = dynamic_cast<VertexSE3 *>(rv);
+    if (!robotVertex)
+    {
       return false;
     }
-    const Isometry3d& robotPose = position;
+    const Isometry3d &robotPose = position;
     Isometry3d sensorPose = robotPose * _offsetVertex->estimate();
-    VertexLine3D* lineVertex = dynamic_cast<VertexLine3D*>(li->vertex());
+    VertexLine3D *lineVertex = dynamic_cast<VertexLine3D *>(li->vertex());
     Line3D worldLine = lineVertex->estimate();
 
+    // 直线测量类型
     Line3D measuredLine = sensorPose.inverse() * worldLine;
 
-    EdgeSE3Line3D* e = new EdgeSE3Line3D();
+    // 边
+    EdgeSE3Line3D *e = new EdgeSE3Line3D();
     e->vertices()[0] = robotVertex;
     e->vertices()[1] = lineVertex;
     Vector4d noise = sample_noise_from_line(_nline);
@@ -237,11 +288,12 @@ struct LineSensor : public Sensor {
     return true;
   }
 
-  VertexSE3* _offsetVertex;
+  VertexSE3 *_offsetVertex;
   Vector4d _nline;
 };
 
-int main (int argc, char** argv) {
+int main(int argc, char **argv)
+{
   bool verbose, robustKernel, fixLines, planarMotion, listSolvers;
   int maxIterations;
   double lambdaInit;
@@ -249,7 +301,7 @@ int main (int argc, char** argv) {
   CommandArgs arg;
   arg.param("i", maxIterations, 10, "perform n iterations");
   arg.param("v", verbose, false, "verbose output of the optimization process");
-  arg.param("solver", strSolver, "lm_var", "select one specific solver");
+  arg.param("solver", strSolver, "lm_var", "select one specific solver"); // lm_var,gn_var,dl_var
   arg.param("lambdaInit", lambdaInit, 0, "user specified lambda init for levenberg");
   arg.param("robustKernel", robustKernel, false, "use robust error functions");
   arg.param("fixLines", fixLines, false, "fix the lines (do localization only)");
@@ -257,21 +309,26 @@ int main (int argc, char** argv) {
   arg.param("listSolvers", listSolvers, false, "list the solvers");
   arg.parseArgs(argc, argv);
 
-  SparseOptimizer* g = new SparseOptimizer();
-  ParameterSE3Offset* odomOffset = new ParameterSE3Offset();
+  SparseOptimizer *g = new SparseOptimizer();
+
+  // ParameterSE3Offset
+  ParameterSE3Offset *odomOffset = new ParameterSE3Offset();
   odomOffset->setId(0);
   g->addParameter(odomOffset);
 
-  OptimizationAlgorithmFactory* solverFactory = OptimizationAlgorithmFactory::instance();
+  // 从求解器工厂获取求解器, lm_var,gn_var,dl_var
+  OptimizationAlgorithmFactory *solverFactory = OptimizationAlgorithmFactory::instance();
   OptimizationAlgorithmProperty solverProperty;
-  OptimizationAlgorithm* solver = solverFactory->construct(strSolver, solverProperty);
+  OptimizationAlgorithm *solver = solverFactory->construct(strSolver, solverProperty);
   g->setAlgorithm(solver);
-  if(listSolvers) {
+  if (listSolvers)
+  {
     solverFactory->listSolvers(std::cout);
     return 0;
   }
 
-  if(!g->solver()) {
+  if (!g->solver())
+  {
     std::cout << "Error allocating solver. Allocating \"" << strSolver << "\" failed!" << std::endl;
     std::cout << "Available solvers: " << std::endl;
     solverFactory->listSolvers(std::cout);
@@ -280,26 +337,29 @@ int main (int argc, char** argv) {
   }
 
   std::cout << "Creating simulator" << std::endl;
-  Simulator* sim = new Simulator(g);
+  Simulator *sim = new Simulator(g);
 
   std::cout << "Creating robot" << std::endl;
-  Robot* r = new Robot(g);
+  Robot *r = new Robot(g);
 
   std::cout << "Creating line sensor" << std::endl;
   Isometry3d sensorPose = Isometry3d::Identity();
-  LineSensor* ls = new LineSensor(r, 0, sensorPose);
-  ls->_nline << 0.001, 0.001, 0.001, 0.0001;
+  // graph->vertics(0)
+  LineSensor *ls = new LineSensor(r, 0, sensorPose);
+  ls->_nline << 0.001, 0.001, 0.001, 0.0001; // 填充nline,为添加噪声准备
   // ls->_nline << 1e-9, 1e-9, 1e-9, 1e-9;
-  r->_sensors.push_back(ls);
-  sim->_robots.push_back(r);
+  r->_sensors.push_back(ls); // 加入传感器列表
+  sim->_robots.push_back(r); // 加入机器人列表
 
+  // 创建3条线
+  // graph->vertics(1,2,3)
   Line3D line;
   std::cout << "Creating landmark line 1" << std::endl;
-  LineItem* li = new LineItem(g, 1);
+  LineItem *li = new LineItem(g, 1);
   Vector6 liv;
   liv << 0.0, 0.0, 5.0, 0.0, 1.0, 0.0;
   line = Line3D::fromCartesian(liv);
-  static_cast<VertexLine3D*>(li->vertex())->setEstimate(line);
+  static_cast<VertexLine3D *>(li->vertex())->setEstimate(line);
   li->vertex()->setFixed(fixLines);
   sim->_world.insert(li);
 
@@ -307,7 +367,7 @@ int main (int argc, char** argv) {
   liv << 5.0, 0.0, 0.0, 0.0, 0.0, 1.0;
   line = Line3D::fromCartesian(liv);
   li = new LineItem(g, 2);
-  static_cast<VertexLine3D*>(li->vertex())->setEstimate(line);
+  static_cast<VertexLine3D *>(li->vertex())->setEstimate(line);
   li->vertex()->setFixed(fixLines);
   sim->_world.insert(li);
 
@@ -315,27 +375,31 @@ int main (int argc, char** argv) {
   liv << 0.0, 5.0, 0.0, 1.0, 0.0, 0.0;
   line = Line3D::fromCartesian(liv);
   li = new LineItem(g, 3);
-  static_cast<VertexLine3D*>(li->vertex())->setEstimate(line);
+  static_cast<VertexLine3D *>(li->vertex())->setEstimate(line);
   li->vertex()->setFixed(fixLines);
   sim->_world.insert(li);
 
+  // 准备运动数据
   Quaterniond q, iq;
-  if(planarMotion) {
+  if (planarMotion)
+  {
     r->_planarMotion = true;
     r->_nmovecov << 0.01, 0.0025, 1e-9, 0.001, 0.001, 0.025;
     q = Quaterniond(AngleAxisd(0.2, Vector3d::UnitZ()).toRotationMatrix());
     iq = Quaterniond(AngleAxisd(-0.2, Vector3d::UnitZ()).toRotationMatrix());
   }
-  else {
+  else
+  {
     r->_planarMotion = false;
     r->_nmovecov << 0.1, 0.005, 1e-9, 0.001, 0.001, 0.05;
-    q = Quaterniond((AngleAxisd(M_PI/10, Vector3d::UnitZ()) * AngleAxisd(0.1, Vector3d::UnitY())).toRotationMatrix());
-    iq = Quaterniond((AngleAxisd(-M_PI/10, Vector3d::UnitZ()) * AngleAxisd(0.1, Vector3d::UnitY())).toRotationMatrix());
+    q = Quaterniond((AngleAxisd(M_PI / 10, Vector3d::UnitZ()) * AngleAxisd(0.1, Vector3d::UnitY())).toRotationMatrix());
+    iq = Quaterniond((AngleAxisd(-M_PI / 10, Vector3d::UnitZ()) * AngleAxisd(0.1, Vector3d::UnitY())).toRotationMatrix());
   }
 
   Isometry3d delta = Isometry3d::Identity();
   sim->_lastVertexId = 4;
 
+  // 起始位姿
   Isometry3d startPose = Isometry3d::Identity();
   startPose.matrix().block<3, 3>(0, 0) = AngleAxisd(-0.75 * M_PI, Vector3d::UnitZ()).toRotationMatrix();
   sim->move(0, startPose);
@@ -343,45 +407,57 @@ int main (int argc, char** argv) {
   int k = 20;
   int l = 2;
   double delta_t = 0.2;
-  for(int j = 0; j < l; ++j) {
+  for (int j = 0; j < l; ++j)
+  {
     Vector3d tr(1.0, 0.0, 0.0);
     delta.matrix().block<3, 3>(0, 0) = q.toRotationMatrix();
-    if(j == l-1) {
+    if (j == l - 1)
+    {
       delta.matrix().block<3, 3>(0, 0) = Matrix3d::Identity();
     }
     delta.translation() = tr * (delta_t * j);
     Isometry3d iDelta = delta.inverse();
-    for(int a = 0; a < 2; ++a) {
-      for(int i = 0; i < k; ++i) {
+    for (int a = 0; a < 2; ++a)
+    {
+      for (int i = 0; i < k; ++i)
+      {
         std::cout << "m";
-        if(a == 0) {
-          sim->relativeMove(0, delta);
-	}
-	else {
+        if (a == 0)
+        {
+          sim->relativeMove(0, delta); // 步进运动
+        }
+        else
+        {
           sim->relativeMove(0, iDelta);
-	}
-	std::cout << "s";
+        }
+        std::cout << "s";
         sim->sense(0);
       }
     }
   }
-  for(int j = 0; j < l; ++j) {
+  for (int j = 0; j < l; ++j)
+  {
     Vector3d tr(1.0, 0.0, 0.0);
     delta.matrix().block<3, 3>(0, 0) = iq.toRotationMatrix();
-    if(j == l-1) {
+    if (j == l - 1)
+    {
       delta.matrix().block<3, 3>(0, 0) = Matrix3d::Identity();
     }
     delta.translation() = tr * (delta_t * j);
     Isometry3d iDelta = delta.inverse();
-    for(int a = 0; a < 2; ++a) {
-      for(int i = 0; i < k; ++i) {
+    for (int a = 0; a < 2; ++a)
+    {
+      for (int i = 0; i < k; ++i)
+      {
         std::cout << "m";
-        if(a == 0) {
+        if (a == 0)
+        {
           sim->relativeMove(0, delta);
-  	}
-        else {
+        }
+        else
+        {
           sim->relativeMove(0, iDelta);
-  	}
+        }
         std::cout << "s";
         sim->sense(0);
       }
@@ -389,9 +465,10 @@ int main (int argc, char** argv) {
   }
   std::cout << std::endl;
 
-  ls->_offsetVertex->setFixed(true);
-  OptimizableGraph::Vertex* gauge = g->vertex(4);
-  if(gauge) {
+  ls->_offsetVertex->setFixed(true); // 固定传感器的相对位姿
+  OptimizableGraph::Vertex *gauge = g->vertex(4); // 将运动的起点固定
+  if (gauge)
+  {
     gauge->setFixed(true);
   }
 

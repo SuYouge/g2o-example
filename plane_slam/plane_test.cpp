@@ -26,7 +26,12 @@
 
 #include <list>
 #include <iostream>
-#include "plane3d.h"
+
+#include "g2o/types/slam3d/isometry3d_mappings.h"
+#include "g2o/types/slam3d/isometry3d_gradients.h"
+#include "g2o/types/slam3d_addons/types_slam3d_addons.h"
+#include <g2o/types/slam3d_addons/plane3d.h>
+// #include "plane3d.h"
 
 using namespace g2o;
 using namespace std;
