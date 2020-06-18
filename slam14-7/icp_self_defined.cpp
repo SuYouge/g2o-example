@@ -19,6 +19,14 @@
 using namespace std;
 using namespace cv;
 
+/*
+T=
+    0.98199    0.131236    0.135917    -0.29855
+  -0.129037    0.991327  -0.0249051 -0.00876509
+  -0.138007  0.00691829    0.990407  -0.0242999
+          0           0           0           1
+*/
+
 void find_feature_matches(
   const Mat &img_1, const Mat &img_2,
   std::vector<KeyPoint> &keypoints_1,
@@ -35,8 +43,8 @@ void pose_estimation_3d3d(
 );
 
 void bundleAdjustment(
-  const vector<Point3f> &points_3d,
-  const vector<Point3f> &points_2d,
+  const vector<Point3f> &pts1,
+  const vector<Point3f> &pts2,
   Mat &R, Mat &t
 );
 
@@ -136,14 +144,15 @@ int main(int argc, char **argv) {
   bundleAdjustment(pts1, pts2, R, t);
 
   // verify p1 = R * p2 + t
-  for (int i = 0; i < 5; i++) {
-    cout << "p1 = " << pts1[i] << endl;
-    cout << "p2 = " << pts2[i] << endl;
-    cout << "(R*p2+t) = " <<
-         R * (Mat_<double>(3, 1) << pts2[i].x, pts2[i].y, pts2[i].z) + t
-         << endl;
-    cout << endl;
-  }
+  // for (int i = 0; i < 5; i++) {
+  //   cout << "p1 = " << pts1[i] << endl;
+  //   cout << "p2 = " << pts2[i] << endl;
+  //   cout << "(R*p2+t) = " <<
+  //        R * (Mat_<double>(3, 1) << pts2[i].x, pts2[i].y, pts2[i].z) + t
+  //        << endl;
+  //   cout << endl;
+  // }
+  return 0;
 }
 
 void find_feature_matches(const Mat &img_1, const Mat &img_2,
@@ -280,7 +289,7 @@ void bundleAdjustment(
 
   chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
   optimizer.initializeOptimization();
-  optimizer.optimize(10);
+  optimizer.optimize(15);
   chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
   chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
   cout << "optimization costs time: " << time_used.count() << " seconds." << endl;

@@ -71,6 +71,8 @@ int main()
   // simulate a robot observing landmarks while travelling on a grid
   SE2 sensorOffsetTransf(0.2, 0.1, -0.1);
   int numNodes = 300;
+
+  // 构造模拟
   Simulator simulator;
   simulator.simulate(numNodes, sensorOffsetTransf);
 
@@ -98,6 +100,7 @@ int main()
 
   // adding the odometry to the optimizer
   // first adding all the vertices
+  // 以SE2为顶点构造图
   cerr << "Optimization: Adding robot poses ... ";
   for (size_t i = 0; i < simulator.poses().size(); ++i)
   {
@@ -111,6 +114,7 @@ int main()
   cerr << "done." << endl;
 
   // second add the odometry constraints
+  // 里程计约束
   cerr << "Optimization: Adding odometry measurements ... ";
   for (size_t i = 0; i < simulator.odometry().size(); ++i)
   {
@@ -126,6 +130,7 @@ int main()
   cerr << "done." << endl;
 
   // add the landmark observations
+  // 进行landmark观测，添加顶点
   cerr << "Optimization: add landmark vertices ... ";
   for (size_t i = 0; i < simulator.landmarks().size(); ++i)
   {
@@ -137,6 +142,7 @@ int main()
   }
   cerr << "done." << endl;
 
+  // 添加边
   cerr << "Optimization: add landmark observations ... ";
   for (size_t i = 0; i < simulator.landmarkObservations().size(); ++i)
   {

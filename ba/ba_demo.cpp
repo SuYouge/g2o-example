@@ -95,22 +95,25 @@ int main(int argc, const char* argv[]){
   cout << "DENSE: "<<  DENSE << endl;
 
 
-
+  // 配置solver
   g2o::SparseOptimizer optimizer;
   optimizer.setVerbose(false);
   std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
   if (DENSE) {
+    // Dense Linear Solver
     linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
   } else {
+    // Cholmod Linear Solver
     linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
   }
 
+  // L-M
   g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(
     g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver))
   );
   optimizer.setAlgorithm(solver);
 
-
+  // 构造true_points
   vector<Vector3d> true_points;
   for (size_t i=0;i<500; ++i)
   {
@@ -119,11 +122,15 @@ int main(int argc, const char* argv[]){
                                    g2o::Sampler::uniformRand(0., 1.)+3));
   }
 
+  // 相机参数
   double focal_length= 1000.;
   Vector2d principal_point(320., 240.);
 
+  // 真实位姿
   vector<g2o::SE3Quat,
       aligned_allocator<g2o::SE3Quat> > true_poses;
+  
+  // 由相机参数定义相机位姿
   g2o::CameraParameters * cam_params
       = new g2o::CameraParameters (focal_length, principal_point, 0.);
   cam_params->setId(0);
@@ -134,19 +141,24 @@ int main(int argc, const char* argv[]){
 
   int vertex_id = 0;
   for (size_t i=0; i<15; ++i) {
+    // 平移变量
     Vector3d trans(i*0.04-1.,0,0);
 
     Eigen:: Quaterniond q;
     q.setIdentity();
     g2o::SE3Quat pose(q,trans);
+
+    // 位姿节点
     g2o::VertexSE3Expmap * v_se3
         = new g2o::VertexSE3Expmap();
     v_se3->setId(vertex_id);
     if (i<2){
       v_se3->setFixed(true);
     }
-    v_se3->setEstimate(pose);
+    v_se3->setEstimate(pose); // 初始值
     optimizer.addVertex(v_se3);
+
+    // 保存真实位姿
     true_poses.push_back(pose);
     vertex_id++;
   }
@@ -158,7 +170,9 @@ int main(int argc, const char* argv[]){
   unordered_map<int,int> pointid_2_trueid;
   unordered_set<int> inliers;
 
+  // 遍历真实点
   for (size_t i=0; i<true_points.size(); ++i){
+    // 构造三维空间点
     g2o::VertexSBAPointXYZ * v_p
         = new g2o::VertexSBAPointXYZ();
     v_p->setId(point_id);
@@ -168,35 +182,48 @@ int main(int argc, const char* argv[]){
                                 g2o::Sampler::gaussRand(0., 1),
                                 g2o::Sampler::gaussRand(0., 1)));
     int num_obs = 0;
+
+    // 从每个位置进行观测
     for (size_t j=0; j<true_poses.size(); ++j){
+      // 相机映射
       Vector2d z = cam_params->cam_map(true_poses.at(j).map(true_points.at(i)));
       if (z[0]>=0 && z[1]>=0 && z[0]<640 && z[1]<480){
         ++num_obs;
       }
     }
+
+    // 如果能观测到的点数目大于2
     if (num_obs>=2){
       optimizer.addVertex(v_p);
+      // 定义内点性质
       bool inlier = true;
       for (size_t j=0; j<true_poses.size(); ++j){
         Vector2d z
             = cam_params->cam_map(true_poses.at(j).map(true_points.at(i)));
-
+        // 对能够观测到的点
         if (z[0]>=0 && z[1]>=0 && z[0]<640 && z[1]<480){
+          // 生成一定比例的外点，比例为OUTLIER_RATIO
           double sam = g2o::Sampler::uniformRand(0., 1.);
+          // 误差大于一定阈值的排除，成为外点，其值设定为任意值
           if (sam<OUTLIER_RATIO){
             z = Vector2d(Sample::uniform(0,640),
                          Sample::uniform(0,480));
             inlier= false;
           }
+          // 添加误差
           z += Vector2d(g2o::Sampler::gaussRand(0., PIXEL_NOISE),
                         g2o::Sampler::gaussRand(0., PIXEL_NOISE));
+          // 构造边
           g2o::EdgeProjectXYZ2UV * e
               = new g2o::EdgeProjectXYZ2UV();
+
+          // 连接相机位姿和三维点
           e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(v_p));
           e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>
                        (optimizer.vertices().find(j)->second));
           e->setMeasurement(z);
           e->information() = Matrix2d::Identity();
+          // 是否采用鲁棒核
           if (ROBUST_KERNEL) {
             g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
             e->setRobustKernel(rk);
@@ -206,12 +233,15 @@ int main(int argc, const char* argv[]){
         }
       }
 
+      // 构造内点列表
       if (inlier){
         inliers.insert(point_id);
         Vector3d diff = v_p->estimate() - true_points[i];
 
         sum_diff2 += diff.dot(diff);
       }
+
+      // 绑定顶点id和真实点列表的序号
       pointid_2_trueid.insert(make_pair(point_id,i));
       ++point_id;
       ++point_num;
@@ -220,6 +250,8 @@ int main(int argc, const char* argv[]){
   cout << endl;
   optimizer.initializeOptimization();
   optimizer.setVerbose(true);
+
+  // structrue only solver, 只优化结构（点），固定相机位姿
   if (STRUCTURE_ONLY){
     g2o::StructureOnlySolver<3> structure_only_ba;
     cout << "Performing structure-only BA:"   << endl;

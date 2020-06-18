@@ -47,6 +47,7 @@ namespace g2o {
 
     typedef std::map<int, std::map<int, Simulator::LandmarkPtrVector> > LandmarkGrid;
 
+    // 生成随机种子
     Simulator::Simulator()
     {
       time_t seed = time(0);

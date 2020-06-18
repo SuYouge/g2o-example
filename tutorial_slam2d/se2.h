@@ -35,6 +35,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+
+// 实现SE2
 namespace g2o {
 
   namespace tutorial {

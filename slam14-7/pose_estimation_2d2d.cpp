@@ -18,6 +18,15 @@
 using namespace std;
 using namespace cv;
 
+/*
+T = 
+  0.999382  -0.012635  0.0327912 0.00975262
+ 0.0118235   0.999622  0.0248239 0.00357725
+-0.0330925 -0.0244208   0.999154 0.00337999
+         0          0          0          1
+*/
+
+
 void find_feature_matches(
     const Mat &img_1, const Mat &img_2,
     std::vector<KeyPoint> &keypoints_1,
@@ -227,29 +236,29 @@ void bundleAdjustmentG2O(
          << pose_cam.matrix() << endl;
 
     // 以及所有特征点的位置
-    for (size_t i = 0; i < points_1.size(); i++)
-    {
-        g2o::VertexSBAPointXYZ *v = dynamic_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(i + 2));
-        cout << "vertex id " << i + 2 << ", pos = ";
-        Eigen::Vector3d pos = v->estimate();
-        cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
-    }
+    // for (size_t i = 0; i < points_1.size(); i++)
+    // {
+    //     g2o::VertexSBAPointXYZ *v = dynamic_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(i + 2));
+    //     cout << "vertex id " << i + 2 << ", pos = ";
+    //     Eigen::Vector3d pos = v->estimate();
+    //     cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
+    // }
 
     // 估计inlier的个数
-    int inliers = 0;
-    for (auto e : edges)
-    {
-        e->computeError();
-        // chi2 就是 error*\Omega*error, 如果这个数很大，说明此边的值与其他边很不相符
-        if (e->chi2() > 1)
-        {
-            cout << "error = " << e->chi2() << endl;
-        }
-        else
-        {
-            inliers++;
-        }
-    }
-    cout << "inliers in total points: " << inliers << "/" << points_1.size() + points_2.size() << endl;
-    optimizer.save("ba.g2o");
+    // int inliers = 0;
+    // for (auto e : edges)
+    // {
+    //     e->computeError();
+    //     // chi2 就是 error*\Omega*error, 如果这个数很大，说明此边的值与其他边很不相符
+    //     if (e->chi2() > 1)
+    //     {
+    //         cout << "error = " << e->chi2() << endl;
+    //     }
+    //     else
+    //     {
+    //         inliers++;
+    //     }
+    // }
+    // cout << "inliers in total points: " << inliers << "/" << points_1.size() + points_2.size() << endl;
+    // optimizer.save("ba.g2o");
 }

@@ -106,7 +106,7 @@ int main()
 
     // calculate the relative 3D position of the point
     // 用给定的相机位姿得到观察点， 初始估计值已经设置为真实坐标， 主要目标是修正误差
-    // 实际场景下是： 未知初始位姿，有一组观测值
+    // 实际场景下是： 未知位姿，有一组观测值
     Vector3d pt0,pt1;
     pt0 = vp0->estimate().inverse() * true_points[i];
     pt1 = vp1->estimate().inverse() * true_points[i];

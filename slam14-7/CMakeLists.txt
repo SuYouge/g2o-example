@@ -38,17 +38,28 @@ include_directories(
 # add_executable(triangulation triangulation.cpp)
 # target_link_libraries(triangulation ${OpenCV_LIBS})
 
-add_executable(pose_estimation_3d2d pose_estimation_3d2d.cpp)
-target_link_libraries(pose_estimation_3d2d
+add_executable(pnp_self_defined pnp_self_defined.cpp)
+target_link_libraries(pnp_self_defined
         g2o_core g2o_stuff
         ${OpenCV_LIBS})
 
-add_executable(pose_estimation_3d3d pose_estimation_3d3d.cpp)
-target_link_libraries(pose_estimation_3d3d
+add_executable(icp_self_defined icp_self_defined.cpp)
+target_link_libraries(icp_self_defined
         g2o_core g2o_stuff
         ${OpenCV_LIBS})
 
 add_executable(pose_estimation_2d2d pose_estimation_2d2d.cpp)
 target_link_libraries(pose_estimation_2d2d
         g2o_core g2o_stuff g2o_solver_cholmod g2o_types_sba g2o_solver_csparse g2o_csparse_extension cholmod 
+        ${OpenCV_LIBS})
+
+add_executable(icp_g2o_defined icp_g2o_defined.cpp)
+target_link_libraries(icp_g2o_defined
+        g2o_core g2o_stuff g2o_types_sba g2o_types_slam3d g2o_types_icp g2o_solver_cholmod cholmod 
+        ${OpenCV_LIBS})
+
+        
+add_executable(pnp_g2o_defined pnp_g2o_defined.cpp)
+target_link_libraries(pnp_g2o_defined
+        g2o_core g2o_stuff g2o_solver_cholmod cholmod g2o_types_sba
         ${OpenCV_LIBS})
